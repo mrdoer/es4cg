@@ -18,10 +18,7 @@ class ElasticObj:
     def __init__(self, index_name,index_type):
         self.index_name = index_name
         self.index_type = index_type
-
-        self.es = Elasticsearch()
-
-    def create_index(self,index_name="cfi",index_type="cfi_type"):
+        
         _index_mappings = {
             "settings": {
                 "analysis": {
@@ -38,13 +35,13 @@ class ElasticObj:
                     "properties": {
                         "label":"string",
                         "data_key": "string",
-                        "title": "string"
-                        "verict_message":{
+                        "title": "string",
+                        "verict_message": {
                             "type": "text",
                             "index": True,
-                            "analyzer":"en_std",
+                            "analyzer": "en_std",
                             "search_analyzer":"en_std"
-                            }
+                            },
                         "description":{
                             "type": "text",
                             "index": True,
@@ -53,78 +50,40 @@ class ElasticObj:
                             }
                     }
                 }
-
             }
         }
-        if self.es.indices.exists(index=self.index_name) is not True:
-            res = self.es.indices.create(index=self.index_name, body=_index_mappings)
-            print (res)
-    def index_data(self):
-        es = Elasticsearch()
+        
+        self.es = Elasticsearch()
+        
+        res = self.es.indices.create(index=self.index_name, body=_index_mappings)
+        
+    def index_xlsx(self):      
         cfi_xlsx = 'C:/Users/EIEUCHH/Desktop/CFI-data.xlsx'
-        
         data_frame = pd.read_excel(pd.ExcelFile(cfi_xlsx))
+        rows = data_frame.shape[0]
+        df_list = []
+        colums = data_frame.colums()
         
+        for i in df.index:
+            row = dict()
+            for col in colums:
+                row[col] = df.get_value(index=i, col = col)
+       
+            df_list.append(row)
+        print('xlsx to list done! total: {} items'.format(len(df_list)))
         
-        
-    def IndexData(self):
-        es = Elasticsearch()
-        csvdir = 'D:/work/ElasticSearch/exportExcels'
-        filenamelist = []
-        for (dirpath, dirnames, filenames) in walk(csvdir):
-            filenamelist.extend(filenames)
-            break
-        total = 0
-        for file in filenamelist:
-            csvfile = csvdir + '/' + file
-            self.Index_Data_FromCSV(csvfile,es)
-            total += 1
-            print (total)
-            time.sleep(10)
-
-    def Index_Data_FromCSV(self,csvfile):
-        '''
-        从CSV文件中读取数据，并存储到es中
-        :param csvfile: csv文件，包括完整路径
-        :return:
-        '''
-        list = CSVOP.ReadCSV(csvfile)
-        index = 0
-        doc = {}
-        for item in list:
-            if index > 1:#第一行是标题
-                doc['title'] = item[0]
-                doc['link'] = item[1]
-                doc['date'] = item[2]
-                doc['source'] = item[3]
-                doc['keyword'] = item[4]
-                res = self.es.index(index=self.index_name, doc_type=self.index_type, body=doc)
-                print(res['created'])
-            index += 1
-            print (index)
-
-    def Index_Data(self):
-        '''
-        数据存储到es
-        :return:
-        '''
-        list = [
-            {   "date": "2017-09-13",
-                "source": "慧聪网",
-                "link": "http://info.broadcast.hc360.com/2017/09/130859749974.shtml",
-                "keyword": "电视",
-                "title": "付费 电视 行业面临的转型和挑战"
-             },
-            {   "date": "2017-09-13",
-                "source": "中国文明网",
-                "link": "http://www.wenming.cn/xj_pd/yw/201709/t20170913_4421323.shtml",
-                "keyword": "电视",
-                "title": "电视 专题片《巡视利剑》广获好评：铁腕反腐凝聚党心民心"
-             }
-              ]
-        for item in list:
-            res = self.es.index(index=self.index_name, doc_type=self.index_type, body=item)
-            print(res['created'])
+        ACTIONS = list()
+        i = 1 
+        for item in df_list:
+            action = {
+                "_index": self.index_name,
+                "_type": self.index_type,
+                "_source": item
+            }
+            i = i + 1
+            ACTIONS.append(action)
+        success, _ = bulk(self.es, ACTIONS, index=self.index_name, raise_on_error=True)
+        print('Performed %d actions' % success)       
 
     def bulk_Index_Data(self):
         '''
@@ -177,49 +136,5 @@ class ElasticObj:
         success, _ = bulk(self.es, ACTIONS, index=self.index_name, raise_on_error=True)
         print('Performed %d actions' % success)
 
-    def Delete_Index_Data(self,id):
-        '''
-        删除索引中的一条
-        :param id:
-        :return:
-        '''
-        res = self.es.delete(index=self.index_name, doc_type=self.index_type, id=id)
-        print (res)
-
-    def Get_Data_Id(self,id):
-
-        res = self.es.get(index=self.index_name, doc_type=self.index_type,id=id)
-        print(res['_source'])
-
-        print ('------------------------------------------------------------------')
-        #
-        # # 输出查询到的结果
-        for hit in res['hits']['hits']:
-            # print hit['_source']
-            print (hit['_source']['date'],hit['_source']['source'],hit['_source']['link'],hit['_source']['keyword'],hit['_source']['title'])
-
-    def Get_Data_By_Body(self):
-        # doc = {'query': {'match_all': {}}}
-        doc = {
-            "query": {
-                "match": {
-                    "keyword": "电视"
-                }
-            }
-        }
-        _searched = self.es.search(index=self.index_name, doc_type=self.index_type, body=doc)
-
-        for hit in _searched['hits']['hits']:
-            # print hit['_source']
-            print (hit['_source']['date'], hit['_source']['source'], hit['_source']['link'], hit['_source']['keyword'], \
-            hit['_source']['title'])
-# obj = ElasticObj("ott1", "ott_type1")
-
-# obj.create_index()
-obj.Index_Data()
-# obj.bulk_Index_Data()
-# obj.IndexData()
-# obj.Delete_Index_Data(1)
-# csvfile = 'D:/work/ElasticSearch/exportExcels/2017-08-31_info.csv'
-# obj.Index_Data_FromCSV(csvfile)
-# obj.GetData(es)
+es_obj = ElasticObj('cfi','cfi-type')
+es_obj.index_xlsx()
